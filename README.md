@@ -1,4 +1,4 @@
-# The official Repository of "ECHO: Toward Contextual Seq2seq Paradigms in Large EEG Models" [![arXiv](https://img.shields.io/badge/arXiv-2509.22556-b31b1b.svg)](https://arxiv.org/abs/2509.22556)
+# The official Repository of "ECHO: Toward Contextual Seq2seq Paradigms in Large EEG Models"
 
 This repository contains the official implementation of ECHO, a framework designed for contextual sequence-to-sequence paradigms in large EEG models. ECHO comprises two main components: an **EEG Encoder** (implemented in the `FAST` directory) and an **EEG-to-Text Decoder** (implemented in the `EEG2Text` directory). The encoder processes raw EEG signals, while the decoder generates textual representations based on the encoded EEG features.
 
@@ -49,7 +49,7 @@ To incorporate additional datasets for training, follow these precise steps:
 All preprocessing files are expected to output an **HDF5 (.h5) file**. Within this `.h5` file, each subject should serve as a key, with the corresponding EEG data as its value.
 
 #### Datasets for Pretraining
-For a comprehensive list of all datasets utilized in the ECHO pretraining phase, including their specific sources and download instructions, please refer to [our paper](https://arxiv.org/abs/2509.22556).
+For a comprehensive list of all datasets utilized in the ECHO pretraining phase, including their specific sources and download instructions, please refer to our paper.
 
 ### Pretrain
 #### 1. EEG Encoder Warm-up
