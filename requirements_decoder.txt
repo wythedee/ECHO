@@ -1,0 +1,10 @@
+pytorch-lightning
+scikit-learn
+einops
+tiktoken
+numba
+pandas
+h5py
+transformers
+tensorboardX
+wandb
