@@ -2,6 +2,13 @@
 
 This repository contains the official implementation of ECHO, a framework designed for contextual sequence-to-sequence paradigms in large EEG models. ECHO comprises two main components: an **EEG Encoder** (implemented in the `FAST` directory) and an **EEG-to-Text Decoder** (implemented in the `EEG2Text` directory). The encoder processes raw EEG signals, while the decoder generates textual representations based on the encoded EEG features.
 
+<p align="center">
+  <img src="images/main.png" alt="ECHO framework overview" width="900">
+  <br>
+  <em>Main figure of the ECHO framework. View the high-resolution PDF <a href="images/main.pdf">here</a>.</em>
+  
+</p>
+
 ## Setup
 We recommend setting up two separate Conda environments for the encoder and decoder to manage their respective dependencies.
 
