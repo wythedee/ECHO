@@ -13,8 +13,13 @@ def find_available_path(folder_list):
     raise FileNotFoundError(f'None of the given path exists {str(folder_list)}')
 
 THREADS = 100
-SRC_FOLDER = '/path/to/your/dataset_root'
-DATA_FOLDER = SRC_FOLDER
+SRC_FOLDER = os.environ.get('FAST_EEG_SOURCE_ROOT', '/path/to/raw-datasets')
+DEFAULT_OUTPUT_ROOT = os.environ.get('ECHO_DATASET_ROOT', '/path/to/EEG_Standardized_Group')
+DATA_FOLDER = os.environ.get('FAST_EEG_OUTPUT', DEFAULT_OUTPUT_ROOT)
+if not DATA_FOLDER.startswith('/path/to/'):
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+CHANNEL_STRATEGY = os.environ.get('FAST_CHANNEL_STRATEGY', 'priority').lower()
+GROUPER = AdaptiveGrouping('ch75')
 
 def pipeline(X, ch_names):
     X = np.clip(X, np.percentile(X, 0.1), np.percentile(X, 99.9))
@@ -25,7 +30,12 @@ def pipeline(X, ch_names):
     # eps = 1e-6
     # X = (X - median) / (iqr + eps)
     X = (X - median) / iqr
-    X = AdaptiveGrouping('ch75').map_to_template(X, ch_names)
+    if CHANNEL_STRATEGY in ('priority', 'first', 'select'):
+        X = GROUPER.map_to_template_priority(X, ch_names)
+    elif CHANNEL_STRATEGY in ('mean', 'average'):
+        X = GROUPER.map_to_template(X, ch_names)
+    else:
+        raise ValueError(f'Unknown CHANNEL_STRATEGY: {CHANNEL_STRATEGY}')
     return X
 
 template_ch_names = [
@@ -52,6 +62,9 @@ class META:
     def __init__(self, h5_name, ch_names, subjects, classes, resample_rate=250, time_length=10):
         self.h5_name = h5_name
         self.h5_path = f'{DATA_FOLDER}/{h5_name}.h5'
+        h5_dir = os.path.dirname(self.h5_path)
+        if h5_dir and not h5_dir.startswith('/path/to/'):
+            os.makedirs(h5_dir, exist_ok=True)
         self.ch_names = ch_names
         self.subjects = subjects
         self.classes = classes

@@ -23,13 +23,14 @@ logging.getLogger("pytorch_lightning.utilities.rank_zero").setLevel(logging.ERRO
 from FAST_v2 import FAST as Tower
 from EEG_Montage.template_ch74 import Electrodes, Zones
 from EEG_Dataset.share import template_ch_names, template_zones
+# from EEG_Dataset.MI_01_SSVEP_KoreaU import CH_NAMES, ZONES
 from train_utils import seed_all, cosine_scheduler, all_exist, yellow, green, freeze
 from train_utils import convert_epoch_acc_to_npy
 from EEG_Dataset import DATASET_BASIC_TASKS
 
-DATASET_ROOT = '/path/to/your/dataset_root'
-PreTrainStage1 = 10
-PreTrainStage2 = 50
+DATASET_ROOT = os.environ.get('ECHO_DATASET_ROOT', '/path/to/EEG_Standardized_Group')
+PreTrainStage1 = 5
+PreTrainStage2 = 45
 PreTrainEpochs = PreTrainStage1 + PreTrainStage2
 FineTuneEpochs = 20
 CheckValEveryN = 1
@@ -108,7 +109,7 @@ class EEG_Encoder_Module(pl.LightningModule):
         self.forward_mode = 'default'
         if lr_mode == 'pre':
             self.lr_list = np.concatenate([
-                cosine_scheduler(1, 0.01, PreTrainStage1, niter_per_ep, warmup_epochs=10),
+                cosine_scheduler(1, 0.01, PreTrainStage1, niter_per_ep, warmup_epochs=0),
                 cosine_scheduler(1, 0.01, PreTrainStage2, niter_per_ep, warmup_epochs=10)
             ])
         elif lr_mode == 'tune':
@@ -586,7 +587,7 @@ class h5Dataset:
     """
     def __init__(self, name, classes):
         self.name = name
-        self.file_path = f"{DATASET_ROOT}/{name.split('_')[0]}/{name}.h5"
+        self.file_path = f"{DATASET_ROOT}/{name}.h5"
         # Keep file handle open to avoid repeated open/close
         self.h5file = h5py.File(self.file_path, 'r')
         self.sub_keys = list(self.h5file.keys())
@@ -836,6 +837,7 @@ if __name__ == '__main__':
     udas = []
     classes = []
     CH_NAMES, ZONES = template_ch_names, template_zones
+    # CH_NAMES, ZONES = CH_NAMES, ZONES
     for ds in datasets:
         task_info = find_dataset(ds)
         uda = h5Dataset(ds, task_info.classes)
@@ -856,7 +858,7 @@ if __name__ == '__main__':
         print(f"  {class_name} -> {label}")
     print("=================")
 
-
+    print("Channel Length: ", len(CH_NAMES), "Zone Dict:", {k: len(v) for k, v in ZONES.items() if v})
     config = PretrainedConfig(
         electrodes=CH_NAMES,
         zone_dict=ZONES,
@@ -874,7 +876,7 @@ if __name__ == '__main__':
         lr=args.lr
     )
 
-    RunFolder = f"fixed_split/{Tower.name}-{time_length}-{args.ds if len(datasets) < 10 else len(datasets)}-{args.seed}/{config.head}-{config.dim_cnn}-{config.dim_token}-{config.window_len}-{config.slide_step}-{config.num_layers}-{config.lr}-bs={args.bs}--cs={config.cross_subject}"
+    RunFolder = f"channels_average/{Tower.name}-{time_length}-{args.ds if len(datasets) < 10 else len(datasets)}-{args.seed}-ch:{len(CH_NAMES)}/{config.head}-{config.dim_cnn}-{config.dim_token}-{config.window_len}-{config.slide_step}-{config.num_layers}-{config.lr}-bs={args.bs}--cs={config.cross_subject}"
     os.makedirs(f"{RunFolder}/ckpt", exist_ok=True)
     os.makedirs(f"{RunFolder}/ckpt-tune", exist_ok=True)
     uda.output_class_mapping(f"{RunFolder}/class_mapping.json")

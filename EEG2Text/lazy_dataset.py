@@ -6,7 +6,7 @@ import fcntl
 from numpy.lib.format import open_memmap
 from typing import Optional
 
-DATASET_ROOT = "/path/to/your/datasets_root"  # Modify as needed
+DATASET_ROOT = os.environ.get("ECHO_DATASET_ROOT", "/path/to/EEG_Standardized_Group")
 
 SHM_ROOT = "/dev/shm"
 
@@ -29,7 +29,8 @@ class h5Dataset:
         self.classes = classes
         self.force_rebuild_memmap = force_rebuild_memmap
 
-        orig_path = os.path.join(root, name.split("_")[0], f"{name}.h5")
+        # orig_path = os.path.join(root, name.split("_")[0], f"{name}.h5")
+        orig_path = os.path.join(root, f"{name}.h5")
 
         # -------- copy file to shared memory (tmpfs) --------
         memmap_flag = use_memmap and os.path.isdir(SHM_ROOT)

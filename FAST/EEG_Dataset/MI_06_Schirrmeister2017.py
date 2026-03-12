@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 SRC_NAME = 'MI_Schirrmeister2017'
 NAME = 'MI_06_Schirrmeister2017'
 SUBJECTS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's13', 's14']
@@ -28,6 +27,43 @@ CH_NAMES = [
     'FCC2h','FTT8h','FTT10h','TTP7h','CCP1h','CCP2h','TTP8h','TPP7h','CPP1h','CPP2h',
     'TPP8h','PPO9h','PPO5h','PPO6h','PPO10h','POO9h','POO3h','POO4h','POO10h','OI1h','OI2h'
 ]
+ZONE_DICT = {
+    'Frontal': [
+        'Fp1', 'Fp2', 'Fpz', 'AF7', 'AF3', 'AF4', 'AF8', 'AFz',
+        'F7', 'F3', 'Fz', 'F4', 'F8', 'F5', 'F1', 'F2', 'F6',
+        'FC5', 'FC1', 'FC2', 'FC6', 'FC3', 'FCz', 'FC4',
+        'FT7', 'FT8', 'FT9', 'FT10',
+        'AFF1', 'AFF2', 'AFF5h', 'AFF6h',
+        'AFp3h', 'AFp4h',
+        'FFC1h', 'FFC2h', 'FFC3h', 'FFC4h', 'FFC5h', 'FFC6h',
+        'FCC1h', 'FCC2h', 'FCC3h', 'FCC4h', 'FCC5h', 'FCC6h',
+        'FFT7h', 'FFT8h',
+        'FTT7h', 'FTT8h', 'FTT9h', 'FTT10h'
+    ],
+    'Central': [
+        'C3', 'Cz', 'C4', 'C5', 'C1', 'C2', 'C6',
+        'CCP1h', 'CCP2h', 'CCP3h', 'CCP4h', 'CCP5h', 'CCP6h'
+    ],
+    'Temporal': [
+        'T7', 'T8', 'M1', 'M2',
+        'TP7', 'TP8',
+        'TPP7h', 'TPP8h', 'TPP9h', 'TPP10h',
+        'TTP7h', 'TTP8h'
+    ],
+    'Parietal': [
+        'CP5', 'CP1', 'CP2', 'CP6', 'CP3', 'CPz', 'CP4',
+        'P7', 'P3', 'Pz', 'P4', 'P8', 'P5', 'P1', 'P2', 'P6', 'P9', 'P10',
+        'CPP1h', 'CPP2h', 'CPP3h', 'CPP4h', 'CPP5h', 'CPP6h',
+        'PPO1', 'PPO2', 'PPO5h', 'PPO6h', 'PPO9h', 'PPO10h'
+    ],
+    'Occipital': [
+        'POz', 'PO5', 'PO3', 'PO4', 'PO6', 'PO7', 'PO8', 'PO9', 'PO10',
+        'O1', 'Oz', 'O2',
+        'I1', 'Iz', 'I2',
+        'POO3h', 'POO4h', 'POO9h', 'POO10h',
+        'OI1h', 'OI2h'
+    ]
+}
 
 MI_Schirrmeister2017 = META(NAME, CH_NAMES, SUBJECTS, ['MI/Left', 'MI/Right'], resample_rate=250, time_length=10)
 
@@ -49,7 +85,7 @@ def proc_one(subject):
     epochs.resample(250, npad='auto')
     x = epochs.get_data(copy=False).astype(np.float32)
     print(subject, x.shape, y.shape, np.unique(y, return_counts=True))
-    x = pipeline(x, CH_NAMES)
+    # x = pipeline(x, CH_NAMES)
     return subject, x, y
 
 def proc_all():

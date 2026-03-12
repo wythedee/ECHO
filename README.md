@@ -1,6 +1,24 @@
-# The official Repository of "ECHO: Toward Contextual Seq2seq Paradigms in Large EEG Models"
+English | [中文](README_CN.md)
 
-This repository contains the official implementation of ECHO, a framework designed for contextual sequence-to-sequence paradigms in large EEG models. ECHO comprises two main components: an **EEG Encoder** (implemented in the `FAST` directory) and an **EEG-to-Text Decoder** (implemented in the `EEG2Text` directory). The encoder processes raw EEG signals, while the decoder generates textual representations based on the encoded EEG features.
+# The official repository of "ECHO: Toward Contextual Seq2seq Paradigms in Large EEG Models" [![arXiv](https://img.shields.io/badge/arXiv-2509.22556-b31b1b.svg)](https://arxiv.org/abs/2509.22556)
+
+This repository contains the official implementation of ECHO. The released pipeline is split into two stages:
+- `FAST/`: EEG encoder warm-up
+- `EEG2Text/`: EEG-to-text contextual pretraining
+
+## News
+- Mar 2026: ECHO is accepted to [ICLR 2026](https://openreview.net/forum?id=ClLQ6cLkoR). 🎉
+## Scope Of This Release
+
+- raw-data preprocessing to standardized `.h5`
+- FAST encoder pretraining
+- ECHO/ECHO-long EEG-to-text pretraining
+
+## Minimal Entrypoints
+For the main workflow, use these three shell scripts:
+- `FAST/EEG_Dataset/preprocess_selected.sh`
+- `FAST/train_multisource_split.sh`
+- `EEG2Text/multisource_icl.sh`
 
 <p align="center">
   <img src="images/main.png" alt="ECHO framework overview" width="900">
@@ -10,76 +28,117 @@ This repository contains the official implementation of ECHO, a framework design
 </p>
 
 ## Setup
-We recommend setting up two separate Conda environments for the encoder and decoder to manage their respective dependencies.
+We recommend two Conda environments.
 
 ```bash
-conda create -n encoder python=3.12
-conda create -n decoder python=3.12
+conda create -n echo-encoder python=3.12
+conda create -n echo-decoder python=3.12
 
-conda activate encoder
+conda activate echo-encoder
 pip install -r requirements_encoder.txt
 
-conda activate decoder
+conda activate echo-decoder
 pip install -r requirements_decoder.txt
 ```
-Configure all paths in the repo using global search function in your IDE. Search for keywords `/path/to/your` to find the position.
-## Run Pretraining
-The pretraining phase involves warming up the EEG Encoder and then contextually pretraining the EEG-to-Text Decoder.
 
-### Dataset Preparation
-To ensure proper integration and functionality with ECHO, follow the recommended dataset directory structure and preparation steps.
-
-#### Dataset Directory Structure
-We recommend the following tree map for your `DATASET_SOURCE_ROOT` to ensure seamless integration with ECHO's preprocessing scripts:
-
+## Paths
+```bash
+export FAST_EEG_SOURCE_ROOT=/path/to/raw-datasets
+export ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group
+export FAST_EEG_OUTPUT="$ECHO_DATASET_ROOT"
 ```
-DATASET_SOURCE_ROOT
-  --EMO
-    --EMO_01_{dataset_name}...
-  --MI
-    --MI_{dataset_name} # Note: MI dataset source file directories under 'MI' should not contain numbers (e.g., 'MI_01_KoreaU') if you intend to use the existing preprocessing files without modification.
-    --MI_...
-  --STR
-    --STR_01_{dataset_name}
-  --...
+
+- `FAST_EEG_SOURCE_ROOT`: raw downloaded datasets
+- `ECHO_DATASET_ROOT`: standardized `.h5` files used by training
+- `FAST_EEG_OUTPUT`: preprocessing output directory
+
+## Dataset Preparation
+Preprocessing scripts live under `FAST/EEG_Dataset/`.
+
+Main pretraining profile:
+
+```bash
+cd FAST/EEG_Dataset
+FAST_EEG_SOURCE_ROOT=/path/to/raw-datasets \
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+FAST_EEG_OUTPUT=/path/to/EEG_Standardized_Group \
+PREPROCESS_PROFILE=main \
+bash preprocess_selected.sh
 ```
-You can refer to the `FAST/EEG_Dataset` directory for examples of dataset names, which are used in preprocessing files or configured within them. These preprocessing files are responsible for converting raw EEG data into a standardized `.h5` format.
 
-#### Adding New Datasets
-To incorporate additional datasets for training, follow these precise steps:
-1.  **Name Convention**: Assign a unique name in the format `TASK_0x_DATASET_NAME` (e.g., `MI_01_KoreaU`).
-2.  **Preprocessing File**: Create a dedicated preprocessing Python file for your dataset within `FAST/EEG_Dataset/`. This file must define a `META` instance (e.g., `MI_HeBin2021_LR = META(NAME_LR, CH_NAMES, SUBJECTS, ['MI/Left', 'MI/Right'], resample_rate=250, time_length=5)}`). This `META` instance encapsulates essential metadata for your dataset.
-3.  **Integrate META Instance**: Update `FAST/EEG_Dataset/__init__.py` to import and include your newly defined `META` instance.
-4.  **Configure Subject Split**: Modify `FAST/dataset_split_config.py` (for the encoder) and `EEG2Text/dataset_split_config.py` (for the decoder) to define the subject split (train/validation/test) for your dataset. The configuration variable name should be `{dataset_name(with number)}_split`.
-5.  **Configure Decoder Dataset Info**: Update `EEG2Text/EEG_dataset_config.py` to include basic information about your dataset. This file acts as a `META` class for the decoder, so ensure its configuration aligns with the `META` instance defined in the `FAST` directory.
+Optional SLEEP tasks(ISRUC) profile:
 
-All preprocessing files are expected to output an **HDF5 (.h5) file**. Within this `.h5` file, each subject should serve as a key, with the corresponding EEG data as its value.
+```bash
+cd FAST/EEG_Dataset
+FAST_EEG_SOURCE_ROOT=/path/to/raw-datasets \
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+FAST_EEG_OUTPUT=/path/to/EEG_Standardized_Group \
+PREPROCESS_PROFILE=isruc \
+bash preprocess_selected.sh
+```
 
-#### Datasets for Pretraining
-For a comprehensive list of all datasets utilized in the ECHO pretraining phase, including their specific sources and download instructions, please refer to our paper.
+You can also pass dataset scripts manually:
 
-### Pretrain
-#### 1. EEG Encoder Warm-up
-This step involves pretraining the EEG Encoder, implemented within the `FAST` directory. The `train_multisource_split.py` script is used for this purpose, configured via `train_multisource_split.sh`.
+```bash
+cd FAST/EEG_Dataset
+FAST_EEG_SOURCE_ROOT=/path/to/raw-datasets \
+FAST_EEG_OUTPUT=/path/to/EEG_Standardized_Group \
+bash preprocess_selected.sh MI_10_HeBin2021.py EMO_03_SEED_V.py
+```
 
-Adjust the settings in `FAST/train_multisource_split.sh` as needed (e.g., specifying datasets, GPU usage, `time_length`).
+`main` covers:
+- MI: `MI_01_KoreaU`, `MI_03_Shin2017A`, `MI_04_BCI_IV_2a`, `MI_05_Weibo2014`, `MI_06_Schirrmeister2017`, `MI_07_Cho2017`, `MI_09_Track4_Upper_limb`, `MI_10_HeBin2021_LR`, `MI_10_HeBin2021_UD`, `MI_11_HeBin2024_LR`, `MI_11_HeBin2024_UD`, `MI_12_PhysioNet`
+- EMO: `EMO_02_SEED_IV`, `EMO_03_SEED_V`, `EMO_04_SEED`, `EMO_05_THU-EP`
+
+`isruc` covers:
+- sleep: `SLEEP_05_isruc_S1`, `SLEEP_05_isruc_S3`
+
+## Step 1: FAST Encoder Warm-up
+Run FAST pretraining with the same standardized dataset root.
+
+Main profile:
+
 ```bash
 cd FAST
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+PRETRAIN_PROFILE=main \
 bash train_multisource_split.sh
 ```
 
-#### 2. EEG-to-Text Decoder Contextual Pretraining
-After the encoder warm-up, the EEG-to-Text Decoder (located in `EEG2Text`) is contextually pretrained. This phase leverages the pre-trained encoder to learn to generate text from EEG features. The `MultiSource_EEG2Text_Split.py` script handles this pretraining, configured by `multisource_icl.sh`.
+Optional ISRUC profile:
 
-Ensure that the `time_len` variable in `ECHO/EEG2Text/multisource_icl.sh` is set to the same value as the `time_length` used during the encoder warm-up.
+```bash
+cd FAST
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+PRETRAIN_PROFILE=isruc \
+bash train_multisource_split.sh
+```
+
+## Step 2: ECHO EEG-to-Text Pretraining
+Use the same dataset root, and keep `TIME_LEN` aligned with the FAST stage.
+
+Main profile:
+
 ```bash
 cd EEG2Text
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+PRETRAIN_PROFILE=main \
 bash multisource_icl.sh
 ```
 
-## Finetune
-To finetune the pre-trained ECHO model on specific downstream tasks, adjust the `EEG2Text/finetune.sh` script. Set the `$CKPT` variable to the path of your pre-trained checkpoint and `$DS` to the datasets you wish to finetune on.
+Optional ISRUC profile:
+
 ```bash
 cd EEG2Text
-bash finetune.sh
+ECHO_DATASET_ROOT=/path/to/EEG_Standardized_Group \
+PRETRAIN_PROFILE=isruc \
+bash multisource_icl.sh
 ```
+
+## Main Files In This Release
+- `FAST/`: encoder training and preprocessing
+- `EEG2Text/`: decoder-side contextual pretraining
+- `requirements_encoder.txt`: encoder dependencies
+- `requirements_decoder.txt`: decoder dependencies
+
+If you want to further trim or customize datasets, edit `FAST/EEG_Dataset/`, `FAST/dataset_split_config.py`, `EEG2Text/EEG_dataset_config.py`, and `EEG2Text/dataset_split_config.py`.

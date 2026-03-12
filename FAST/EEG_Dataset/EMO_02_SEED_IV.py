@@ -21,8 +21,7 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
-SRC_FOLDER = os.path.join(SRC_FOLDER, 'EMO')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'EMO')
+
 NAME = 'EMO_02_SEED_IV'
 SUBJECTS = ['1_', '2_', '3_', '4_', '5_', '6_', '7_', '8_', '9_', '10_', '11_',
             '12_', '13_', '14_', '15_']

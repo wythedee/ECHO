@@ -225,7 +225,8 @@ class WhisperICLCollator:
 
     def __call__(self, features):
         batch_eeg, batch_inp, batch_lbl = [], [], []
-        max_support = len(features[0]["support_EEG"])
+        # Find the maximum support count across all samples in the batch
+        max_support = max(len(feat["support_EEG"]) for feat in features)
 
         # Decide support count: 0 or >= number of unique classes in support.
         if self.k_is_random and max_support > 0:
@@ -275,8 +276,25 @@ class WhisperICLCollator:
                 supp_eeg = supp_eeg_full
                 support_tokens_to_use = supp_tokens_full
 
+            # Pad support samples to actual_k if needed
+            current_k = len(supp_eeg)
+            if current_k < actual_k:
+                # Repeat existing support samples cyclically to reach actual_k
+                if current_k > 0:
+                    num_repeats = (actual_k - current_k + current_k - 1) // current_k
+                    repeated_eeg = supp_eeg.repeat(num_repeats + 1, 1, 1)[:actual_k]
+                    repeated_tokens = (support_tokens_to_use * (num_repeats + 1))[:actual_k]
+                    supp_eeg = repeated_eeg
+                    support_tokens_to_use = repeated_tokens
+                else:
+                    # No support samples available, create dummy zeros
+                    query_eeg = feat["EEG"]
+                    C, T = query_eeg.shape
+                    supp_eeg = torch.zeros((actual_k, C, T), dtype=query_eeg.dtype)
+                    support_tokens_to_use = [[self.tokenizer.eot]] * actual_k
+
             query_eeg = feat["EEG"].unsqueeze(0)        # (1, C, T)
-            eeg_stack = torch.cat([supp_eeg, query_eeg], dim=0)  # (k+1, C, T)
+            eeg_stack = torch.cat([supp_eeg, query_eeg], dim=0)  # (actual_k+1, C, T)
             batch_eeg.append(eeg_stack)
 
             supp_input_tokens, supp_target_tokens = [], []

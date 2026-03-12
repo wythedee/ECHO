@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 SRC_NAME = 'MI_Shin2017A'
 # https://github.com/NeuroTechX/moabb/blob/develop/moabb/datasets/bbci_eeg_fnirs.py#L192-L312
 NAME = 'MI_03_Shin2017A'

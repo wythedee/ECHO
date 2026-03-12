@@ -10,7 +10,6 @@ import warnings
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 # original dataset folder name
 SRC_NAME = 'MI_HeBin2024'
 

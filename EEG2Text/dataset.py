@@ -1,8 +1,13 @@
 import numpy as np
 import h5py
 import os
+
+DEFAULT_DATASET_ROOT = os.environ.get('ECHO_DATASET_ROOT', '/path/to/EEG_Standardized_Group')
+DEFAULT_RAW_DATA_ROOT = os.environ.get('FAST_EEG_SOURCE_ROOT', '/path/to/raw-datasets')
+DEFAULT_DSO_ROOT = os.environ.get('DSO_DATASET_ROOT', '/path/to/DSO_PP2025')
+
 class DSO_Dataset:
-    def __init__(self, name = 'CS-rmEMG=k10-rmEOG=t3.5', root = '/media/james/public/DSO_PP2025'):
+    def __init__(self, name = 'CS-rmEMG=k10-rmEOG=t3.5', root = DEFAULT_DSO_ROOT):
         self.name = name
         with np.load(root + f'/{name}.npz') as d:
             X, Y = d['X'], d['Y']
@@ -22,7 +27,7 @@ class DSO_Dataset:
         return train_X, train_Y, test_X, test_Y
     
 class h5Dataset:
-    def __init__(self, name, classes, root='/home/workspace/EEG_Standardized_Group', pad=False, pad_length=None):
+    def __init__(self, name, classes, root=DEFAULT_DATASET_ROOT, pad=False, pad_length=None):
         self.sfreq, self.X, self.Y = self.load(name, root)
         if pad:
             self.pad_x(pad_length)
@@ -87,7 +92,7 @@ class h5Dataset:
                                     constant_values=0)
 
 class SHHS_Dataset:
-    def __init__(self, name = 'SLEEP_03_SHHS', root = '/home/workspace/dataset'):
+    def __init__(self, name = 'SLEEP_03_SHHS', root = DEFAULT_RAW_DATA_ROOT):
         self.name = name
         self.path = root + f'/{name}' + '/shhs_npz'
         self.n_subjects = 0
@@ -128,7 +133,7 @@ class SHHS_Dataset:
         return self.X[idx], self.Y[idx]
 
 class EMO_3_Dataset:
-    def __init__(self, name, root = '/home/workspace/EEG_Standardized_Group'):
+    def __init__(self, name, root = DEFAULT_DATASET_ROOT):
         self.sfreq, self.X, self.Y = self.load(name, root)
         self.name = name
         self.n_subjects = self.X.shape[0]
@@ -152,7 +157,7 @@ class EMO_3_Dataset:
         return self.X[idx], self.Y[idx]
     
 class EMO_Dataset:
-    def __init__(self, name, classes, root = '/home/workspace/EEG_Standardized_Group', pad=False, pad_length=None):
+    def __init__(self, name, classes, root = DEFAULT_DATASET_ROOT, pad=False, pad_length=None):
         self.sfreq, self.X, self.Y = self.load(name, root)
         if pad:
             self.pad_x(pad_length)

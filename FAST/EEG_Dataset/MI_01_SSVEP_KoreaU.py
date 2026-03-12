@@ -27,17 +27,17 @@ CH_NAMES = [
 ]
 
 # # 根据脑区域对电极进行分类
-# ZONES = {
-#     'Pre-frontal': ['Fp1', 'Fp2', 'AF7', 'AF3', 'AF4', 'AF8'],
-#     'Frontal': ['F7', 'F3', 'Fz', 'F4', 'F8', 'F9', 'F10'],
-#     'Precentral': ['FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6'],
-#     'Central': ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'Cz'],
-#     'Postcentral': ['CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'CPz'],
-#     'Parietal': ['P1', 'P2', 'P3', 'P4', 'P7', 'P8', 'Pz'],
-#     'Temporal': ['T7', 'T8', 'TP7', 'TP8', 'TP9', 'TP10', 'TTP7h', 'TPP9h', 'TPP8h', 'TPP10h', 'FT9', 'FT10', 'FTT9h', 'FTT10h'],
-#     'Parietal-Occipital Junction': ['PO3', 'PO4', 'PO9', 'PO10', 'POz'],
-#     'Occipital': ['O1', 'O2', 'Oz'],
-# }
+ZONES = {
+    'Pre-frontal': ['Fp1', 'Fp2', 'AF7', 'AF3', 'AF4', 'AF8'],
+    'Frontal': ['F7', 'F3', 'Fz', 'F4', 'F8', 'F9', 'F10'],
+    'Precentral': ['FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6'],
+    'Central': ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'Cz'],
+    'Postcentral': ['CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'CPz'],
+    'Parietal': ['P1', 'P2', 'P3', 'P4', 'P7', 'P8', 'Pz'],
+    'Temporal': ['T7', 'T8', 'TP7', 'TP8', 'TP9', 'TP10', 'TTP7h', 'TPP9h', 'TPP8h', 'TPP10h', 'FT9', 'FT10', 'FTT9h', 'FTT10h'],
+    'Parietal-Occipital Junction': ['PO3', 'PO4', 'PO9', 'PO10', 'POz'],
+    'Occipital': ['O1', 'O2', 'Oz'],
+}
 
 SUBJECTS = [
     's13', 's22', 's28', 's5', 's31', 's46', 's41', 's36', 's8', 
@@ -94,7 +94,7 @@ def proc_all(task):
     # for sub in SUBJECTS:
     #     print(f"==> [START] Processing subject: {sub}", flush=True)
     #     res.append(proc_one(sub, task))
-    with h5py.File(f'{DATA_FOLDER}/{task}/{task}_01_KoreaU.h5', 'w') as f:
+    with h5py.File(f'{DATA_FOLDER}/{task}_01_KoreaU.h5', 'w') as f:
         for sub, X, Y in res:
             if X is None:
                 continue
@@ -104,4 +104,4 @@ def proc_all(task):
 
 if __name__ == '__main__':
     proc_all('MI')
-    proc_all('SSVEP')
+    # proc_all('SSVEP')

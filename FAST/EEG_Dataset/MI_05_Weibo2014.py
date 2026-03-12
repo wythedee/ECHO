@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 # https://github.com/NeuroTechX/moabb/blob/develop/moabb/datasets/Weibo2014.py#L64-L188
 # [
 #     'Fp1', 'Fpz', 'Fp2', 'AF3', 'AF4', 'F7', 'F5', 'F3', 'F1', 'Fz', 'F2', 'F4', 'F6',

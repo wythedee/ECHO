@@ -109,6 +109,22 @@ class AdaptiveGrouping:
         newX = np.array([self.map_trial(x, ch_names) for x in X])
         return newX
 
+    def map_trial_priority(self, X, ch_names):
+        assert len(ch_names) == X.shape[0], f'{len(ch_names)} != {X.shape[0]}'
+        newX = np.zeros((len(self.template_channels), X.shape[1]), dtype=X.dtype)
+        ch_lookup = {ch.lower(): idx for idx, ch in enumerate(ch_names)}
+        for target_idx, target in enumerate(self.template_channels):
+            aliases = self.template_dict[target]
+            for alias in aliases:
+                src_idx = ch_lookup.get(alias.lower())
+                if src_idx is not None:
+                    newX[target_idx] = X[src_idx]
+                    break
+        return newX
+
+    def map_to_template_priority(self, X, ch_names):
+        return np.array([self.map_trial_priority(x, ch_names) for x in X])
+
 if __name__ == '__main__':
     adaptive_group = AdaptiveGrouping('ch75')
     X_example = np.random.randn(10, 100)  # 10 channels, 100 samples

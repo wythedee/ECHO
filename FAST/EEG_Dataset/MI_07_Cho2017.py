@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 SRC_NAME = 'MI_Cho2017'
 NAME = 'MI_07_Cho2017'
 SUBJECTS = ['s1', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17', 's18', 

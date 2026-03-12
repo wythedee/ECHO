@@ -22,6 +22,12 @@ MI_06_Schirrmeister2017_split = {
     'test': range(11, 14),
 }
 
+MI_08_Track1_Few_shot_split = {
+    'train': range(0, 10),
+    'val': range(10, 15),
+    'test': range(15, 20),
+}
+
 MI_13_SHU_split = {
     'train': range(0, 15),
     'val': range(15, 20),
@@ -180,5 +186,5 @@ TUH_04_TUEV_Events_split = {
 ATTEN_01_GoNogo_split = {
     'train': range(0, 16),   # 26 subjects: 16/5/5 (approx 60/20/20)
     'val': range(16, 21),
-    'test': range(21, 26),
+    'test': range(23, 26),
 }

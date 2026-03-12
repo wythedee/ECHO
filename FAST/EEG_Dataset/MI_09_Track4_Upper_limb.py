@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 # https://brain.korea.ac.kr/bci2021/competition.php
 SRC_NAME = 'MI_Track4_Upper_limb'
 NAME = 'MI_09_Track4_Upper_limb'

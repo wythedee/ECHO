@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline
 
 SRC_FOLDER = os.path.join(SRC_FOLDER, 'MI')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'MI')
 NAME = 'MI_HeBin2021'
 NAME_LR = 'MI_10_HeBin2021_LR'
 NAME_UD = 'MI_10_HeBin2021_UD'
@@ -120,7 +119,7 @@ def proc_all():
     f_UD.close()
 
 if __name__ == '__main__':
-    CACHE_FOLDER = '/path/to/your/dataset_root/cache'
+    CACHE_FOLDER = '/home/workspace/EEG_Standardized_Group_new/cache'
     os.system(f'rm -rf {CACHE_FOLDER}')
     os.makedirs(CACHE_FOLDER, exist_ok=True)
     proc_all()

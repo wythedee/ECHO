@@ -6,6 +6,7 @@ import os
 import wandb
 import gc
 import einops
+import csv
 from pathlib import Path
 
 from torch import nn
@@ -108,6 +109,11 @@ class WhisperModelModule(LightningModule):
         config=None,
         wd=None,
         seed=0,
+        encoder_path_override=None,
+        encoder_lr=5e-5,
+        decoder_lr=5e-4,
+        connect_lr=5e-4,
+        freeze_encoder_epochs=5,
     ):
         super().__init__()
         seed_all(seed)
@@ -115,6 +121,11 @@ class WhisperModelModule(LightningModule):
         self.whisper = whisper.load_model(model_name)
         self.whisper.requires_grad_(False)
         self.wd = wd
+        self.encoder_path_override = encoder_path_override
+        self.encoder_lr = encoder_lr
+        self.decoder_lr = decoder_lr
+        self.connect_lr = connect_lr
+        self.freeze_encoder_epochs = freeze_encoder_epochs
 
         # class cfg:
         #     head = 'D0'
@@ -154,22 +165,37 @@ class WhisperModelModule(LightningModule):
         )
 
         self.fast = Tower(cfg)
-        if "," in dataset_name:
-            ds_names = dataset_name.split(",")
-            if len(ds_names) > 10:
-                encoder_path = (
-                    f'eeg_encoders/ds_num={len(ds_names)}/{config["fold_ckpt"]}.ckpt'
-                )
+        encoder_path = None
+        if self.encoder_path_override:
+            encoder_path = self.encoder_path_override
+        else:
+            if "," in dataset_name:
+                ds_names = dataset_name.split(",")
+                if len(ds_names) > 10:
+                    encoder_path = (
+                        f'eeg_encoders/ds_num={len(ds_names)}/{config["fold_ckpt"]}.ckpt'
+                    )
+                else:
+                    encoder_path = (
+                        f'eeg_encoders/{",".join(ds_names)}/{config["fold_ckpt"]}.ckpt'
+                    )
             else:
-                encoder_path = (
-                    f'eeg_encoders/{",".join(ds_names)}/{config["fold_ckpt"]}.ckpt'
-                )
-        else:
-            encoder_path = f'eeg_encoders/{dataset_name}/{config["fold_ckpt"]}.ckpt'
-        encoder_path = DATASET_ROOT + "/" + encoder_path
-        if config["fold_ckpt"] == "finetune":
-            print("Skip encoder loading for finetune")
-        else:
+                encoder_path = f'eeg_encoders/{dataset_name}/{config["fold_ckpt"]}.ckpt'
+            cfg_encoder = config.get("encoder_path")
+            if cfg_encoder:
+                encoder_path = cfg_encoder
+        if encoder_path is None:
+            raise ValueError(
+                "Unable to infer encoder checkpoint path. Please provide --encoder_path."
+            )
+        if not os.path.isabs(encoder_path):
+            encoder_path = os.path.join(DATASET_ROOT, encoder_path)
+        self.encoder_ckpt_path = encoder_path
+        should_load_encoder = True
+        if config.get("fold_ckpt") == "finetune" and not self.encoder_path_override:
+            print("Skip encoder loading for finetune (no override supplied)")
+            should_load_encoder = False
+        if should_load_encoder:
             self._load_fast_checkpoint(encoder_path)
             self.fast.requires_grad_(False)
         self.fast_dim_token = self.fast.cls_token.shape[-1]
@@ -181,7 +207,7 @@ class WhisperModelModule(LightningModule):
         self.eeg_end = nn.Parameter(torch.randn(self.fast_dim_token))
         self.position_embeddings = nn.Embedding(15, self.fast_dim_token)  # 最多10个位置
         self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
-        self.lr_list = cosine_lr(1, 0.5, 100, niter_per_ep, warmup_epochs=1)
+        self.lr_list = cosine_lr(1, 0.5, 100, niter_per_ep, warmup_epochs=5)
         self._tloss, self._vloss = [], []
         self.save_hyperparameters(ignore=["tokenizer"])
         # dataset name for saving predictions
@@ -238,39 +264,38 @@ class WhisperModelModule(LightningModule):
         )
 
     def _load_fast_checkpoint(self, ckpt_path):
+        def _prepare_state_dict(raw_state):
+            """Return a dict with prefixes stripped so it can be fed into safe_load_state_dict."""
+            if isinstance(raw_state, dict) and "state_dict" in raw_state:
+                state = raw_state["state_dict"]
+            else:
+                state = raw_state
+            model_keys = [k for k in state.keys() if k.startswith("model.")]
+            if model_keys:
+                print("Found parameters with 'model.' prefix in model member variable, removing prefix")
+                state = {k[6:] if k.startswith("model.") else k: v for k, v in state.items()}
+            return state
+
+        def _load_with_filter(raw_state):
+            state = _prepare_state_dict(raw_state)
+            safe_load_state_dict(self.fast, state, skip_key_substrings=["last_layer"])
+
         try:
             checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
             print(f"Loading from model member variable in {ckpt_path}")
-            model_state_dict = checkpoint["state_dict"]
-            model_keys = [k for k in model_state_dict.keys() if k.startswith("model.")]
-            if model_keys:
-                print(
-                    f"Found parameters with 'model.' prefix in model member variable, removing prefix"
-                )
-                new_state_dict = {}
-                for key, value in model_state_dict.items():
-                    if key.startswith("model."):
-                        new_key = key[6:]
-                        new_state_dict[new_key] = value
-                    else:
-                        new_state_dict[key] = value
-                self.fast.load_state_dict(new_state_dict)
-            else:
-                self.fast.load_state_dict(model_state_dict)
-
+            _load_with_filter(checkpoint)
         except Exception as e:
             print(f"Error loading checkpoint {ckpt_path}: {e}")
             try:
                 print(f"Fallback: Loading directly as state_dict from {ckpt_path}")
-                self.fast.load_state_dict(
-                    torch.load(ckpt_path, map_location="cpu", weights_only=False)
-                )
+                fallback_state = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+                _load_with_filter(fallback_state)
             except Exception as e2:
                 print(f"Fallback also failed: {e2}")
                 raise e2
 
     def on_train_epoch_start(self):
-        if self.current_epoch <= 5:
+        if self.current_epoch < self.freeze_encoder_epochs:
             self.whisper.requires_grad_(True)
             self.connect.requires_grad_(True)
             self.fast.requires_grad_(False)
@@ -288,9 +313,9 @@ class WhisperModelModule(LightningModule):
 
     def configure_optimizers(self):
         optimizer_grouped_parameters = [
-            {"params": self.fast.parameters(), "lr": 0.000005},
-            {"params": self.whisper.parameters(), "lr": 0.00005},
-            {"params": self.connect.parameters(), "lr": 0.00005},
+            {"params": self.fast.parameters(), "lr": self.encoder_lr},
+            {"params": self.whisper.parameters(), "lr": self.decoder_lr},
+            {"params": self.connect.parameters(), "lr": self.connect_lr},
         ]
 
         self.optimizer = torch.optim.Adam(optimizer_grouped_parameters)
@@ -733,8 +758,80 @@ if __name__ == "__main__":
     parser.add_argument("--time_len", type=int, default=30)
     parser.add_argument("--whisper", type=str, default="tiny")
     parser.add_argument("--bs", type=int, default=64)
+    parser.add_argument(
+        "--encoder_path",
+        type=str,
+        default=None,
+        help="Absolute or DATASET_ROOT-relative FAST encoder checkpoint path.",
+    )
+    parser.add_argument(
+        "--encoder_lr",
+        type=float,
+        default=5e-5,
+        help="Learning rate for encoder (FAST tower) parameters.",
+    )
+    parser.add_argument(
+        "--decoder_lr",
+        type=float,
+        default=5e-4,
+        help="Learning rate for Whisper decoder parameters.",
+    )
+    parser.add_argument(
+        "--connect_lr",
+        type=float,
+        default=5e-4,
+        help="Learning rate for the EEG-to-Whisper connector MLP.",
+    )
+    parser.add_argument(
+        "--freeze_encoder_epochs",
+        type=int,
+        default=5,
+        help="Number of initial epochs to keep the encoder frozen for each stage.",
+    )
+    parser.add_argument(
+        "--stage1_epochs",
+        type=int,
+        default=15,
+        help="Max epochs for stage 1 training.",
+    )
+    parser.add_argument(
+        "--stage2_epochs",
+        type=int,
+        default=15,
+        help="Max epochs for stage 2 training.",
+    )
+    parser.add_argument(
+        "--stage1_support",
+        type=int,
+        default=8,
+        help="Fixed support size for stage 1 (train/val/test).",
+    )
+    parser.add_argument(
+        "--stage2_support",
+        type=int,
+        default=8,
+        help="Fixed support size for stage 2 training/eval (support is sampled randomly in collator).",
+    )
+    parser.add_argument(
+        "--test_support_list",
+        type=str,
+        default="0,4,8",
+        help="Comma-separated support counts to evaluate during testing (e.g., '0,4,8').",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--finetune", type=lambda x: x.lower() == "true", default=False)
+    parser.add_argument(
+        "--override_dim_cnn",
+        type=int,
+        default=None,
+        help="If set, override dim_cnn in dataset config",
+    )
+    parser.add_argument(
+        "--override_dim_token",
+        type=int,
+        default=None,
+        help="If set, override dim_token in dataset config",
+    )
     args = parser.parse_args()
 
     # Try to import fixed subject split config; fallback to default 7/1.5/1.5 on runtime
@@ -753,6 +850,15 @@ if __name__ == "__main__":
     )
     (wd / "ckpt").mkdir(parents=True, exist_ok=True)
     gpus = [int(gpu) for gpu in args.gpus.split(",")]
+    test_support_counts = sorted(
+        {
+            int(s)
+            for s in args.test_support_list.split(",")
+            if s.strip() != ""
+        }
+    )
+    if not test_support_counts:
+        test_support_counts = [0]
 
     ds_names = args.ds_name.split(",")
 
@@ -865,6 +971,7 @@ if __name__ == "__main__":
     test_subject_map = build_subject_map(all_test_idx, dataset_subject_ranges, udas)
 
     dataset_config = main_dataset_config.copy()
+    dataset_config["encoder_path"] = args.encoder_path
     dataset_config["classes"] = [cls for classes in all_classes for cls in classes]
     dataset_config["fold_ckpt"] = (
         "fixed_split" if not args.finetune else "finetune"
@@ -872,6 +979,10 @@ if __name__ == "__main__":
     dataset_config["n_classes"] = len(set(dataset_config["classes"]))
     dataset_config["head"] = args.enc_version
     dataset_config["seq_len"] = args.time_len * 250
+    if args.override_dim_cnn is not None:
+        dataset_config["dim_cnn"] = args.override_dim_cnn
+    if args.override_dim_token is not None:
+        dataset_config["dim_token"] = args.override_dim_token
 
     # ================= Helper Function: Build per-dataset TestLoaders =================
     def build_test_loaders_per_dataset(
@@ -968,6 +1079,54 @@ if __name__ == "__main__":
             results[ds_name] = metrics
         return results
 
+    def export_results_table(results_dict, output_file):
+        headers = [
+            "stage",
+            "scenario",
+            "dataset",
+            "support_count",
+            "accuracy",
+            "roc_auc",
+            "pr_auc",
+            "roc_auc_macro",
+            "pr_auc_macro",
+            "kappa",
+            "f1_weighted",
+        ]
+        rows = []
+        for stage_name, scenario_dict in results_dict.items():
+            if not isinstance(scenario_dict, dict):
+                continue
+            for scenario_name, ds_metrics in scenario_dict.items():
+                if not isinstance(ds_metrics, dict):
+                    continue
+                support_val = ""
+                for part in str(scenario_name).split("_"):
+                    if part.isdigit():
+                        support_val = int(part)
+                        break
+                for ds_name, metrics in ds_metrics.items():
+                    row = {
+                        "stage": stage_name,
+                        "scenario": scenario_name,
+                        "dataset": ds_name,
+                        "support_count": support_val,
+                        "accuracy": metrics.get("accuracy", ""),
+                        "roc_auc": metrics.get("roc_auc", ""),
+                        "pr_auc": metrics.get("pr_auc", ""),
+                        "roc_auc_macro": metrics.get("roc_auc_macro", ""),
+                        "pr_auc_macro": metrics.get("pr_auc_macro", ""),
+                        "kappa": metrics.get("kappa", ""),
+                        "f1_weighted": metrics.get("f1_weighted", ""),
+                    }
+                    rows.append(row)
+        if not rows:
+            return
+        with open(output_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(rows)
+
     def trainer_init(patience=20, max_epochs=100, gpus=[0]):
         cb = (
             [
@@ -1018,7 +1177,7 @@ if __name__ == "__main__":
     # First Stage
     print("First Stage Training")
     first_stage_k = 1
-    first_stage_fixed_support_num = 8
+    first_stage_fixed_support_num = args.stage1_support
 
     TrainDS = ICLWithSupportDataset_Lazy(
         udas,
@@ -1071,9 +1230,16 @@ if __name__ == "__main__":
         config=dataset_config,
         wd=wd,
         seed=args.seed,
+        encoder_path_override=args.encoder_path,
+        encoder_lr=args.encoder_lr,
+        decoder_lr=args.decoder_lr,
+        connect_lr=args.connect_lr,
+        freeze_encoder_epochs=args.freeze_encoder_epochs,
     )
     # Create Trainer
-    train_trainer = trainer_init(patience=10, max_epochs=20, gpus=gpus)
+    train_trainer = trainer_init(
+        patience=min(7, args.stage1_epochs), max_epochs=args.stage1_epochs, gpus=gpus
+    )
     test_trainer = pl.Trainer(
         strategy="auto",
         accelerator="gpu",
@@ -1134,9 +1300,8 @@ if __name__ == "__main__":
             sot_first=args.sot_first,
             support_flag=True,
         )
-        stage1_test_results = run_tests_and_collect(
-            test_trainer, pl_model, per_ds_loaders
-        )
+        stage1_metrics = run_tests_and_collect(test_trainer, pl_model, per_ds_loaders)
+        stage1_test_results = {"stage1_eval": stage1_metrics}
 
     else:
         print("Skip First Stage testing.")
@@ -1144,7 +1309,7 @@ if __name__ == "__main__":
     gc.collect()
     torch.cuda.empty_cache()
     second_stage_k = 1
-    second_stage_fixed_support_num = 12
+    second_stage_fixed_support_num = args.stage2_support
     if second_stage_k == -1:
         print("Second Stage Training Skipped")
         # wandb.finish()
@@ -1161,7 +1326,11 @@ if __name__ == "__main__":
     else:
         print(f"\nSecond Stage Training")
 
-        train_trainer = trainer_init(patience=10, max_epochs=20, gpus=gpus)
+        train_trainer = trainer_init(
+            patience=min(10, args.stage2_epochs),
+            max_epochs=args.stage2_epochs,
+            gpus=gpus,
+        )
         pl_model.stage = 2
         pl_model.train()
 
@@ -1233,61 +1402,47 @@ if __name__ == "__main__":
     pl_model.eval()
     stage2_test_results = {}
 
-    print(f"\nTest 1: Using first stage settings:")
-    stage2_test_results["first_stage"] = {}
-    per_ds_loaders = build_test_loaders_per_dataset(
-        ds_names,
-        dataset_subject_ranges,
-        all_test_idx,
-        udas,
-        test_subject_map,
-        dataset_config["classes"],
-        tokenizer,
-        k_per_class=0,
-        fixed_support_num=first_stage_fixed_support_num,
-        sot_first=args.sot_first,
-        support_flag=True,
-    )
-    stage2_test_results["first_stage"] = run_tests_and_collect(
-        test_trainer, pl_model, per_ds_loaders
-    )
+    stage2_test_results = {}
 
-    print(f"\nTest 2: Using second stage settings")
-    stage2_test_results["second_stage"] = {}
-    per_ds_loaders = build_test_loaders_per_dataset(
-        ds_names,
-        dataset_subject_ranges,
-        all_test_idx,
-        udas,
-        test_subject_map,
-        dataset_config["classes"],
-        tokenizer,
-        k_per_class=second_stage_k,
-        fixed_support_num=second_stage_fixed_support_num,
-        sot_first=args.sot_first,
-        support_flag=True,
-    )
-    stage2_test_results["second_stage"] = run_tests_and_collect(
-        test_trainer, pl_model, per_ds_loaders
-    )
+    def run_support_evals(
+        tag_prefix,
+        ds_list,
+        subject_ranges,
+        test_indices,
+        uda_list,
+        subj_map,
+        class_list,
+    ):
+        for support_num in test_support_counts:
+            scenario_name = f"{tag_prefix}_{support_num}"
+            print(f"\nTesting scenario: {scenario_name}")
+            support_flag = support_num > 0
+            k_for_eval = second_stage_k if support_flag else 0
+            loaders = build_test_loaders_per_dataset(
+                ds_list,
+                subject_ranges,
+                test_indices,
+                uda_list,
+                subj_map,
+                class_list,
+                tokenizer,
+                k_per_class=k_for_eval,
+                fixed_support_num=support_num,
+                sot_first=args.sot_first,
+                support_flag=support_flag,
+            )
+            stage2_test_results[scenario_name] = run_tests_and_collect(
+                test_trainer, pl_model, loaders
+            )
 
-    print(f"\nTest 3: No support")
-    stage2_test_results["no_support"] = {}
-    per_ds_loaders = build_test_loaders_per_dataset(
+    run_support_evals(
+        "support",
         ds_names,
         dataset_subject_ranges,
         all_test_idx,
         udas,
         test_subject_map,
         dataset_config["classes"],
-        tokenizer,
-        k_per_class=second_stage_k,
-        fixed_support_num=0,
-        sot_first=args.sot_first,
-        support_flag=True,
-    )
-    stage2_test_results["no_support"] = run_tests_and_collect(
-        test_trainer, pl_model, per_ds_loaders
     )
 
     # ------------------  Cross-dataset Test  ------------------
@@ -1323,62 +1478,14 @@ if __name__ == "__main__":
             all_cross_test_idx, cross_dataset_subject_ranges, cross_udas
         )
 
-        stage2_test_results["cross_ds_first_stage"] = {}
-        per_ds_cross_loaders = build_test_loaders_per_dataset(
+        run_support_evals(
+            "cross_support",
             cross_ds_names,
             cross_dataset_subject_ranges,
             all_cross_test_idx,
             cross_udas,
             cross_test_subject_map,
             cross_classes,
-            tokenizer,
-            k_per_class=second_stage_k,
-            fixed_support_num=second_stage_fixed_support_num,
-            sot_first=args.sot_first,
-            support_flag=True,
-        )
-        stage2_test_results["cross_ds_first_stage"] = run_tests_and_collect(
-            test_trainer, pl_model, per_ds_cross_loaders
-        )
-
-        print(f"\nTest 5: Cross-dataset test with second stage settings")
-
-        stage2_test_results["cross_ds_second_stage"] = {}
-        per_ds_cross_loaders = build_test_loaders_per_dataset(
-            cross_ds_names,
-            cross_dataset_subject_ranges,
-            all_cross_test_idx,
-            cross_udas,
-            cross_test_subject_map,
-            cross_classes,
-            tokenizer,
-            k_per_class=second_stage_k,
-            fixed_support_num=second_stage_fixed_support_num,
-            sot_first=args.sot_first,
-            support_flag=True,
-        )
-        stage2_test_results["cross_ds_second_stage"] = run_tests_and_collect(
-            test_trainer, pl_model, per_ds_cross_loaders
-        )
-
-        print(f"\nTest 6: Cross-dataset test with no support")
-
-        stage2_test_results["cross_ds_no_support"] = {}
-        per_ds_cross_loaders = build_test_loaders_per_dataset(
-            cross_ds_names,
-            cross_dataset_subject_ranges,
-            all_cross_test_idx,
-            cross_udas,
-            cross_test_subject_map,
-            cross_classes,
-            tokenizer,
-            k_per_class=second_stage_k,
-            fixed_support_num=0,
-            sot_first=args.sot_first,
-            support_flag=False,
-        )
-        stage2_test_results["cross_ds_no_support"] = run_tests_and_collect(
-            test_trainer, pl_model, per_ds_cross_loaders
         )
 
     else:
@@ -1389,6 +1496,7 @@ if __name__ == "__main__":
         "stage2_test_results": stage2_test_results,
     }
 
+    export_results_table(all_test_results, wd / "test_results.csv")
     with open(wd / "test_results.pkl", "wb") as f:
         pickle.dump(all_test_results, f)
 

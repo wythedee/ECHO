@@ -15,8 +15,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline, split_trial
 
-SRC_FOLDER = os.path.join(SRC_FOLDER, 'EMO')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'EMO')
+
 NAME = 'EMO_03_SEED_V'
 # SUBJECTS = ['1_', '2_', '3_', '4_', '5_', '6_', '7_', '8_', '9_', '10_', 
 #             '11_', '12_', '13_', '14_', '15_', '16_']

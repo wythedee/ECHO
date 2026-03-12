@@ -14,8 +14,7 @@ from EEG_Dataset.EMO_03_SEED_V import SUBJECTS
 from EEG_Montage.AdaptiveGrouping import AdaptiveGrouping
 from share import THREADS, META, SRC_FOLDER, DATA_FOLDER, pipeline, split_trial
 
-SRC_FOLDER = os.path.join(SRC_FOLDER, 'EMO')
-DATA_FOLDER = os.path.join(DATA_FOLDER, 'EMO')
+
 NAME = "EMO_04_SEED"
 
 CH_NAMES = ['FP1', 'FPZ', 'FP2', 'AF3', 'AF4', 'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6',

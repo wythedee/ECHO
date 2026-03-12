@@ -285,9 +285,49 @@ class ICLWithSupportDataset_Test_Lazy(Dataset):
         self.fixed_support_local_indices = {}
         for sub_id, (st, ed) in self.subject_map.items():
             n_trials = ed - st
-            all_local = list(range(n_trials))
             k = min(self.fixed_support_pool_size, n_trials)
-            support_local = _rnd.sample(all_local, k) if k > 0 else []
+            if k == 0:
+                self.fixed_support_local_indices[sub_id] = []
+                continue
+
+            label_to_indices = {}
+            for lt in range(n_trials):
+                y = self._load_label(sub_id, lt)
+                label = self._get_class_label(y)
+                label_to_indices.setdefault(label, []).append(lt)
+
+            for idx_list in label_to_indices.values():
+                _rnd.shuffle(idx_list)
+
+            support_local = []
+            label_keys = list(label_to_indices.keys())
+            while len(support_local) < k and label_to_indices:
+                _rnd.shuffle(label_keys)
+                new_keys = []
+                for label in label_keys:
+                    idx_list = label_to_indices.get(label, [])
+                    if not idx_list:
+                        continue
+                    support_local.append(idx_list.pop(0))
+                    if len(support_local) >= k:
+                        break
+                    if idx_list:
+                        new_keys.append(label)
+                label_keys = new_keys if new_keys else [
+                    key for key, vals in label_to_indices.items() if vals
+                ]
+                if not label_keys:
+                    break
+
+            if len(support_local) < k:
+                remaining = [
+                    lt
+                    for lt in range(n_trials)
+                    if lt not in support_local
+                ]
+                _rnd.shuffle(remaining)
+                support_local.extend(remaining[: k - len(support_local)])
+
             self.fixed_support_local_indices[sub_id] = sorted(support_local)
 
         support_sets = {sid: set(lst) for sid, lst in self.fixed_support_local_indices.items()}
@@ -401,12 +441,30 @@ class ICLWithSupportDataset_Test_Lazy(Dataset):
         # ---------- fixed support from precomputed pool ----------
         cache = self.fixed_support_cache.get(gsid, None)
         if cache is not None:
-            supp_text = cache["text"]
-            supp_toks = cache["tokens"]
-            if cache["eeg"] is None:
-                supp_eeg = torch.zeros((0, *eeg_q.shape))
+            cached_text = cache["text"]
+            cached_toks = cache["tokens"]
+            cached_eeg = cache["eeg"]
+
+            if cached_text:
+                target_num = self.fixed_support_num if self.fixed_support_num is not None else len(cached_text)
+                target_num = min(target_num, len(cached_text))
+                label_dict = {}
+                for idx_c, label in enumerate(cached_text):
+                    label_dict.setdefault(label, []).append(idx_c)
+                selected_idx = self._smart_sampling(txt_q, label_dict, target_num)
+                if not selected_idx:
+                    selected_idx = list(range(target_num))
+                selected_idx = selected_idx[:target_num]
+                _rnd.shuffle(selected_idx)
+                supp_text = [cached_text[i] for i in selected_idx]
+                supp_toks = [cached_toks[i] for i in selected_idx]
+                if cached_eeg is not None:
+                    supp_eeg = cached_eeg[selected_idx]
+                else:
+                    supp_eeg = torch.zeros((0, *eeg_q.shape))
             else:
-                supp_eeg = cache["eeg"]
+                supp_text, supp_toks = [], []
+                supp_eeg = torch.zeros((0, *eeg_q.shape))
         else:
             supp_text, supp_toks = [], []
             supp_eeg = torch.zeros((0, *eeg_q.shape))
