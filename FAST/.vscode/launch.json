@@ -1,0 +1,42 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train MultiSource Split",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_multisource_split.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--ds", "EMO_03_SEED_V,EMO_06_FACED,SLEEP_05_isruc_S1,SLEEP_05_isruc_S3,CS_04_BCIC_Track3,MDD_01_Mumtaz,MI_02_ShanghaiU",
+                "--time_length", "5",
+                "--gpus", "0",
+                "--head", "V3",
+                "--dim1", "256",
+                "--dim2", "256",
+                "--win", "100",
+                "--step", "90",
+                "--lay", "4",
+                "--lr", "5e-05",
+                "--bs", "32",
+                "--workers", "64",
+                "--persistent_workers"
+            ],
+            "env": {
+                "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"
+            },
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        },
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

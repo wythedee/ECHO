@@ -1,0 +1,9 @@
+mne
+h5py
+pytorch-lightning
+pandas
+einops
+transformers
+lightning
+mat73
+scikit-learn
