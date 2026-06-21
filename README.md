@@ -24,6 +24,23 @@ pip install -r requirements_decoder.txt
 ```
 Configure all paths in the repo using global search function in your IDE. Search for keywords `/path/to/your` to find the position.
 
+## Checkpoint
+The released ECHO checkpoint is available on Hugging Face:
+
+```
+https://huggingface.co/wythedee/ECHO
+```
+
+Download it into the repository root with:
+
+```bash
+pip install -U huggingface_hub
+huggingface-cli download wythedee/ECHO \
+  --repo-type model \
+  --include "checkpoints/ECHO.ckpt" \
+  --local-dir .
+```
+
 ## Data Format
 This public release uses standardized HDF5 files as the dataset interface. The conversion from source recordings to this format is intentionally not included. To run the framework, prepare one `.h5` file per dataset with the following layout:
 
